@@ -1,5 +1,6 @@
-model/
-data/
+model/*
+data/input/*
+data/output/*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
