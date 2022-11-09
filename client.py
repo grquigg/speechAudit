@@ -10,6 +10,8 @@ import sys
 import wave
 import json
 
+import os
+
 from deepspeech import Model, version
 from timeit import default_timer as timer
 
@@ -89,12 +91,12 @@ class VersionAction(argparse.Action):
 
 def main():
     parser = argparse.ArgumentParser(description='Running DeepSpeech inference.')
-    parser.add_argument('--model', required=True,
-                        help='Path to the model (protocol buffer binary file)')
-    parser.add_argument('--scorer', required=False,
-                        help='Path to the external scorer file')
-    parser.add_argument('--audio', required=True,
-                        help='Path to the audio file to run (WAV format)')
+    # parser.add_argument('--model', required=True,
+    #                     help='Path to the model (protocol buffer binary file)')
+    # parser.add_argument('--scorer', required=False,
+    #                     help='Path to the external scorer file')
+    # parser.add_argument('--audio', required=True,
+    #                     help='Path to the audio file to run (WAV format)')
     parser.add_argument('--beam_width', type=int,
                         help='Beam width for the CTC decoder')
     parser.add_argument('--lm_alpha', type=float,
@@ -111,13 +113,16 @@ def main():
                         help='Number of candidate transcripts to include in JSON output')
     parser.add_argument('--hot_words', type=str,
                         help='Hot-words and their boosts.')
-    parser.add_argument('--out', type=str, default='out.txt')
+    # parser.add_argument('--out', type=str, default='out.txt')
     args = parser.parse_args()
 
-    print('Loading model from file {}'.format(args.model), file=sys.stderr)
+    model_p = "./model/deepspeech-0.9.3-models.pbmm"
+    model_s = "./model/deepspeech-0.9.3-models.scorer"
+
+    print('Loading model from file {}'.format(model_p), file=sys.stderr)
     model_load_start = timer()
     # sphinx-doc: python_ref_model_start
-    ds = Model(args.model)
+    ds = Model(model_p)
     print(ds)
     # sphinx-doc: python_ref_model_stop
     model_load_end = timer() - model_load_start
@@ -128,10 +133,10 @@ def main():
 
     desired_sample_rate = ds.sampleRate()
 
-    if args.scorer:
-        print('Loading scorer from files {}'.format(args.scorer), file=sys.stderr)
+    if model_s:
+        print('Loading scorer from files {}'.format(model_s), file=sys.stderr)
         scorer_load_start = timer()
-        ds.enableExternalScorer(args.scorer)
+        ds.enableExternalScorer(model_s)
         scorer_load_end = timer() - scorer_load_start
         print('Loaded scorer in {:.3}s.'.format(scorer_load_end), file=sys.stderr)
 
@@ -144,36 +149,46 @@ def main():
             word,boost = word_boost.split(':')
             ds.addHotWord(word,float(boost))
 
-    fin = wave.open(args.audio, 'rb')
-    fs_orig = fin.getframerate()
-    if fs_orig != desired_sample_rate:
-        print('Warning: original sample rate ({}) is different than {}hz. Resampling might produce erratic speech recognition.'.format(fs_orig, desired_sample_rate), file=sys.stderr)
-        fs_new, audio = convert_samplerate(args.audio, desired_sample_rate)
-    else:
-        audio = np.frombuffer(fin.readframes(fin.getnframes()), np.int16)
+    i_dir = "./data/input/"
+    o_dir = "./data/output/"
 
-    audio_length = fin.getnframes() * (1/fs_orig)
-    fin.close()
+    files = os.listdir(i_dir)
 
-    print('Running inference.', file=sys.stderr)
-    inference_start = timer()
-    transcripts = []
-    # sphinx-doc: python_ref_inference_start
-    if args.extended:
-        print(metadata_to_string(ds.sttWithMetadata(audio, 1).transcripts[0]))
-    elif args.json:
-        print(metadata_json_output(ds.sttWithMetadata(audio, args.candidate_transcripts)))
-        with open(args.out, "w") as file:
-            file.write(json.dumps(metadata_json_output(ds.sttWithMetadata(audio, args.candidate_transcripts))))
-            file.close()
-    else:
-        print(ds.stt(audio))
-        with open(args.out, "w") as file:
-            file.write(ds.stt(audio))
-            file.close()
-    # sphinx-doc: python_ref_inference_stop
-    inference_end = timer() - inference_start
-    print('Inference took %0.3fs for %0.3fs audio file.' % (inference_end, audio_length), file=sys.stderr)
+    for fname in files:
+        flin = os.path.join(i_dir, fname)
+        fout = os.path.join(o_dir, f"{fname[:-4]}.txt")
+
+        fin = wave.open(flin, 'rb')
+
+        fs_orig = fin.getframerate()
+        if fs_orig != desired_sample_rate:
+            print('Warning: original sample rate ({}) is different than {}hz. Resampling might produce erratic speech recognition.'.format(fs_orig, desired_sample_rate), file=sys.stderr)
+            fs_new, audio = convert_samplerate(flin, desired_sample_rate)
+        else:
+            audio = np.frombuffer(fin.readframes(fin.getnframes()), np.int16)
+
+        audio_length = fin.getnframes() * (1/fs_orig)
+        fin.close()
+
+        print(f'\nRunning inference on {fname}', file=sys.stderr)
+        inference_start = timer()
+        transcripts = []
+        # sphinx-doc: python_ref_inference_start
+        if args.extended:
+            print(metadata_to_string(ds.sttWithMetadata(audio, 1).transcripts[0]))
+        elif args.json:
+            print(metadata_json_output(ds.sttWithMetadata(audio, args.candidate_transcripts)))
+            with open(fout, "w") as file:
+                file.write(json.dumps(metadata_json_output(ds.sttWithMetadata(audio, args.candidate_transcripts))))
+                file.close()
+        else:
+            print(ds.stt(audio))
+            with open(fout, "w") as file:
+                file.write(ds.stt(audio))
+                file.close()
+        # sphinx-doc: python_ref_inference_stop
+        inference_end = timer() - inference_start
+        print('Inference took %0.3fs for %0.3fs audio file.' % (inference_end, audio_length), file=sys.stderr)
 
 if __name__ == '__main__':
     main()
