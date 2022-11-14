@@ -14,7 +14,7 @@ import os
 
 from deepspeech import Model, version
 from timeit import default_timer as timer
-
+from add_noise import add_noise
 try:
     from shhlex import quote
 except ImportError:
@@ -155,7 +155,7 @@ def main():
 
     #this code is modified slightly to work for the layout of the TIMIT dataset
     i_dir = "archive/data/TEST/"
-    o_dir = "output"
+    o_dir = "noisy_output"
     if(not os.path.isdir(o_dir)):
         os.mkdir(o_dir)
     dir_list = os.listdir(i_dir)
@@ -203,6 +203,7 @@ def main():
                             file.write(json.dumps(metadata_json_output(ds.sttWithMetadata(audio, args.candidate_transcripts))))
                             file.close()
                     else:
+                        audio = add_noise(audio)
                         print(ds.stt(audio))
                         with open(fout, "w") as file:
                             file.write(ds.stt(audio))
