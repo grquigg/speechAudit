@@ -81,6 +81,8 @@ def transcribe_audio(file_path, from_file=False):
             response = get_out_of_vocab(word)
             dict[response[0]] = response[1]
             transcribe = dict[word].split(' ')
+            if 'IX' in transcribe:
+                transcribe.remove('IX')
             phonetic += transcribe
     return phonetic
 
@@ -156,14 +158,14 @@ def transcribe(actual_words, pred_words, actual_phones, pred_phones, matrix, pho
     correct_words = set(word_actual).intersection(word_pred)
     # print(correct_words)
     #set correct predictions in the confusion matrix
-    if(len(actual_phones) == len(pred_phones)): #then we can map the phones 1-to-1
-        for i in range(len(actual_phones)):
-            confusion_matrix[phone_dict[actual_phones[i]]][phone_dict[pred_phones[i]]] += 1
-    else:
-        alignment = align_phones(actual_phones, pred_phones)
-        print(alignment)
-        for i in range(len(alignment)):
-            confusion_matrix[phone_dict[alignment[i][0]]][phone_dict[alignment[i][1]]] += 1
+    # if(len(actual_phones) == len(pred_phones)): #then we can map the phones 1-to-1
+    #     for i in range(len(actual_phones)):
+    #         confusion_matrix[phone_dict[actual_phones[i]]][phone_dict[pred_phones[i]]] += 1
+    # else:
+    alignment = align_phones(actual_phones, pred_phones)
+    print(alignment)
+    for i in range(len(alignment)):
+        confusion_matrix[phone_dict[alignment[i][0]]][phone_dict[alignment[i][1]]] += 1
 
 def compute_accuracy(actual_phones, predicted_phones, matrix, phones_dict):
     for i in range(len(actual_phones)):
@@ -228,7 +230,7 @@ if __name__ == '__main__':
     predicted_transcriptions = []
     actual_trans = []
     predicted_trans = []
-    in_dir = "output"
+    in_dir = "output_squared_noise"
     text_dir = "archive/data/TEST"
     s_list = os.listdir(text_dir)
     phones_dict = {}
@@ -286,8 +288,7 @@ if __name__ == '__main__':
     print(decision_matrix[2])
     print("Phone with highest number of overpredictions: {}".format(phones[np.argmax(decision_matrix[2])]))
     print(confusion_matrix)
-    print(confusion_matrix[:,0])
-    print(np.sum(confusion_matrix[:,0]))
+
     total = np.sum(confusion_matrix, axis=0)
     print(total)
     accuracies = confusion_matrix.copy().astype(float)
