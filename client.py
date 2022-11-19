@@ -155,7 +155,10 @@ def main():
 
     #this code is modified slightly to work for the layout of the TIMIT dataset
     i_dir = "archive/data/TEST/"
-    o_dir = "noisy_output"
+    o_dir = "output_min_suppression_zero"
+    NOISE_PARAMS = []
+    noise_method = 'none'
+
     if(not os.path.isdir(o_dir)):
         os.mkdir(o_dir)
     dir_list = os.listdir(i_dir)
@@ -173,7 +176,7 @@ def main():
             if(not os.path.isdir(outdir)):
                 os.mkdir(outdir)
             files = os.listdir(read_dir)
-            print(files)
+
             for fname in files:
                 if(fname[-4:] == '.wav'):
                     flin = os.path.join(read_dir, fname)
@@ -203,7 +206,7 @@ def main():
                             file.write(json.dumps(metadata_json_output(ds.sttWithMetadata(audio, args.candidate_transcripts))))
                             file.close()
                     else:
-                        audio = add_noise(audio)
+                        audio = add_noise(audio, NOISE_PARAMS, method=noise_method)
                         print(ds.stt(audio))
                         with open(fout, "w") as file:
                             file.write(ds.stt(audio))

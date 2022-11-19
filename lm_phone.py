@@ -87,11 +87,7 @@ def transcribe_audio(file_path, from_file=False):
     return phonetic
 
 def align_phones(actual_phones, pred_phones):
-    pass
-    # print(actual_phones)
-    # print(pred_phones)
     if(len(actual_phones) == 0 and len(pred_phones) == 0):
-        # print("BAD")
         return []
     alignments = []
     search_range = np.abs(len(actual_phones) - len(pred_phones)) + 2
@@ -120,8 +116,6 @@ def align_phones(actual_phones, pred_phones):
                 if i >= len(actual_phones):
                     break
     if(best_cluster_length == 0):
-        # if(len(actual_phones) != 0 and len(pred_phones) > len(actual_phones)):
-        #     raise NotImplementedError
         for i in range(len(actual_phones)):
             if(i >= len(pred_phones)):
                 alignments.append((actual_phones[i], "NONE"))
@@ -147,23 +141,12 @@ def align_phones(actual_phones, pred_phones):
     # print(alignments)
     return alignments
 
-def transcribe(actual_words, pred_words, actual_phones, pred_phones, matrix, phone_dict):
-    #assume that the phonemes in the intersection between the words recognized and the actual words is correct
+def transcribe(actual_phones, pred_phones, matrix, phone_dict, verbose=False):
     #CORE ASSUMPTION #1: Words only appear once in each phrase
     #This is a bad assumption but one that can be remediated
-    distance = jellyfish.levenshtein_distance(' '.join(pred_phones),' '.join(actual_phones))
-    print(actual_phones)
-    print(pred_phones)
-    print("Prediction is off by {} phones".format(distance))
-    correct_words = set(word_actual).intersection(word_pred)
-    # print(correct_words)
-    #set correct predictions in the confusion matrix
-    # if(len(actual_phones) == len(pred_phones)): #then we can map the phones 1-to-1
-    #     for i in range(len(actual_phones)):
-    #         confusion_matrix[phone_dict[actual_phones[i]]][phone_dict[pred_phones[i]]] += 1
-    # else:
     alignment = align_phones(actual_phones, pred_phones)
-    print(alignment)
+    if(verbose):
+        print(alignment)
     for i in range(len(alignment)):
         confusion_matrix[phone_dict[alignment[i][0]]][phone_dict[alignment[i][1]]] += 1
 
@@ -182,124 +165,91 @@ def compute_accuracy(actual_phones, predicted_phones, matrix, phones_dict):
         matrix += temp
     pass
 
-def transcribe_out_of_vocab(word):
-    pass
-    #check if the word is simply a subpart of another word
-    sub_matches = []
-    super_matches = []
-    if(word[-1:] == "S" and word[:-1] in dict):
-        print(word)
-        dict[word] = dict[word[:-1]] + " Z"
-        print(dict[word])
-        return
-    for key in dict.keys():
-        if word in key:
-            #very specific edge case
-            match = key.find(word)
-            if(match+len(word) != len(key)):
-                if(word[-1:] == "D" and key[match+len(word)] == "G"):
-                    continue
-            print("Subword whole")
-            print(key)
-            print(match)
-            print(dict[key])
-            super_matches.append(key)
-            print(dict[key].split(' ')[match:])
-
-        if key in word: #look for better context
-            sub_matches.append(key)
-    # if(len(super_matches) > 0):
-    #     raise NotImplementedError("Should implement this")
-    # print("Subword matches for {}".format(word))
-    if(len(sub_matches) > 0):
-    #then use the matches to construct transcriptions of these OOV words
-        sub_matches = sorted(sub_matches, key=lambda x: len(x), reverse=True)
-        # print(sub_matches)
-        # print(word)
-        # mod_word = copy.deepcopy(word)
-        # for i in sub_matches:
-        #     print(i)
-        #     print(dict[i])
-        #     candidate = 
-    #     raise NotImplementedError("Should implement this")
-    # if(len(sub_matches) == 0 and len(super_matches) == 0):
-    #     raise ValueError("No idea what to do with this")
-
 if __name__ == '__main__':
-    actual_transcriptions = []
-    predicted_transcriptions = []
-    actual_trans = []
-    predicted_trans = []
-    in_dir = "output_squared_noise"
-    text_dir = "archive/data/TEST"
-    s_list = os.listdir(text_dir)
     phones_dict = {}
     for i in range(len(phones)):
         phones_dict[phones[i]] = i
-    confusion_matrix = np.zeros((len(phones), len(phones)), dtype=int)
-    decision_matrix = np.zeros((3, len(phones)))
-    dir_list = os.listdir(text_dir)
-    num_audio = 0
-    for dir in dir_list:
-        i_dir2 = os.path.join(text_dir, dir)
+    confusion_matrix = np.zeros((len(phones), len(phones)), dtype=int) #table for each respective phone
+    #input settings are "word" and "corpus"
+    input_setting = "word"
+    if(input_setting == "corpus"):
+        actual_transcriptions = []
+        predicted_transcriptions = []
+        actual_trans = []
+        predicted_trans = []
 
-        subsub_dir = os.listdir(i_dir2)
-        for sub_dir in subsub_dir:
-            read_dir = os.path.join(i_dir2, sub_dir)
+        in_dir = "output_min_suppression_zero"
+        text_dir = "archive/data/TEST"
+        s_list = os.listdir(text_dir)
 
-            files = os.listdir(read_dir)
-            for fname in files:
-                if(fname[-4:] == '.wav'):
-                    name_base = fname[:-8]
-                    true_trans_path = os.path.join(read_dir, name_base+".TXT")
-                    pred_trans_path= os.path.join(in_dir, dir+"/"+sub_dir+"/"+name_base+".WAV.txt")
-                    word_actual = transcribe_text(true_trans_path, from_file=True)
-                    word_pred = transcribe_text(pred_trans_path)
-                    print(word_actual)
-                    print(word_pred)
-                    true_transcription = transcribe_audio(true_trans_path, from_file=True)
-                    print(' '.join(true_transcription))
-                    actual_transcriptions.append(' '.join(true_transcription))
-                    actual_trans.append(true_transcription)
-                    pred_transcription = transcribe_audio(pred_trans_path)
-                    print(pred_transcription)
-                    if(len(pred_transcription) == 0):
-                        raise NotImplementedError()
-                    predicted_transcriptions.append(' '.join(pred_transcription))
-                    predicted_trans.append(pred_transcription)
-                    transcribe(word_actual, word_pred, true_transcription, pred_transcription, confusion_matrix, phones_dict)
-                    index = 0
-                    max_align_dist = 1 #assume that transcriptions are off by only one or two phonemes
-                    previous_error_rate = 0
-                    num_audio += 1
-    error = jiwer.compute_measures(predicted_transcriptions, actual_transcriptions)
-    print("Phone error rate: {}".format(error['wer']))
-    compute_accuracy(actual_trans, predicted_trans, decision_matrix, phones_dict)
-    print("Accuracy per phone")
-    accuracy_per_phone = decision_matrix[0][:-1] / decision_matrix[1][:-1]
-    print(accuracy_per_phone)
-    poorest_identify = np.argmin(accuracy_per_phone)
-    print("Phone with highest accuracy is {} with accuracy of {}".format(phones[np.argmax(accuracy_per_phone)], np.max(accuracy_per_phone)))
-    print("Phone with lowest accuracy is {} with accuracy of {}".format(phones[poorest_identify], np.min(accuracy_per_phone)))
-    print("Phone with lowest number of appearances in data: {}".format(phones[np.argmin(decision_matrix[1])]))
-    errors = decision_matrix[1] - decision_matrix[0]
-    print("Phone with highest number of errors {}".format(phones[np.argmax(errors)]))
-    print("Overpredictions:")
-    print(decision_matrix[2])
-    print("Phone with highest number of overpredictions: {}".format(phones[np.argmax(decision_matrix[2])]))
-    print(confusion_matrix)
+        decision_matrix = np.zeros((3, len(phones)))
+        dir_list = os.listdir(text_dir)
 
-    total = np.sum(confusion_matrix, axis=0)
-    print(total)
-    accuracies = confusion_matrix.copy().astype(float)
-    total_correct = 0
-    for i in range(accuracies.shape[0]):
-        accuracies[:,i] = accuracies[:,i] / total[i]
-        print(phones[i])
-        print(accuracies[i,i])
-        total_correct += confusion_matrix[i,i]
-    print("Accuracy: {}".format(total_correct / np.sum(total)))
-    disp = ConfusionMatrixDisplay(confusion_matrix, display_labels=phones)
-    disp.text_ = None
-    disp.plot(include_values=False)
-    plt.show()
+        for dir in dir_list:
+            i_dir2 = os.path.join(text_dir, dir)
+
+            subsub_dir = os.listdir(i_dir2)
+            for sub_dir in subsub_dir:
+                read_dir = os.path.join(i_dir2, sub_dir)
+
+                files = os.listdir(read_dir)
+                for fname in files:
+                    if(fname[-4:] == '.wav'):
+                        name_base = fname[:-8]
+                        true_trans_path = os.path.join(read_dir, name_base+".TXT")
+                        pred_trans_path= os.path.join(in_dir, dir+"/"+sub_dir+"/"+name_base+".WAV.txt")
+                        word_actual = transcribe_text(true_trans_path, from_file=True)
+                        word_pred = transcribe_text(pred_trans_path)
+                        true_transcription = transcribe_audio(true_trans_path, from_file=True)
+                        actual_transcriptions.append(' '.join(true_transcription))
+                        actual_trans.append(true_transcription)
+                        pred_transcription = transcribe_audio(pred_trans_path)
+                        if(len(pred_transcription) == 0):
+                            raise NotImplementedError()
+                        predicted_transcriptions.append(' '.join(pred_transcription))
+                        predicted_trans.append(pred_transcription)
+                        transcribe(true_transcription, pred_transcription, confusion_matrix, phones_dict)
+                        index = 0
+                        max_align_dist = 1 #assume that transcriptions are off by only one or two phonemes
+                        previous_error_rate = 0
+
+        error = jiwer.compute_measures(predicted_transcriptions, actual_transcriptions)
+        print("Phone error rate: {}".format(error['wer'])) #treat each phone in the transcription as a word
+        total = np.sum(confusion_matrix, axis=0)
+        accuracy_per_phone = np.zeros(len(phones)-1)
+        accuracies = confusion_matrix.copy().astype(float)
+        total_correct = 0
+        for i in range(accuracies.shape[0]-1):
+            accuracies[:,i] = accuracies[:,i] / total[i]
+            total_correct += confusion_matrix[i,i]
+            decision_matrix[0,i] = confusion_matrix[i,i]
+            decision_matrix[1,i] = total[i].copy()
+            decision_matrix[2,i] = confusion_matrix[i,-1]
+            accuracy_per_phone[i] = accuracies[i,i].copy()
+
+        print("Phone with highest accuracy is {} with accuracy of {}".format(phones[np.argmax(accuracy_per_phone)], np.max(accuracy_per_phone)))
+        print("Phone with lowest accuracy is {} with accuracy of {}".format(phones[np.argmin(accuracy_per_phone)], np.min(accuracy_per_phone)))
+        print("Phone with lowest number of appearances in data: {}".format(phones[np.argmin(total)]))
+        errors = decision_matrix[1,:] - decision_matrix[0,:]
+        print("Phone with highest number of errors: {}".format(phones[np.argmax(errors)]))
+        print("Phone that was added the most often: {}".format(phones[np.argmax(confusion_matrix[-1,:])]))
+        print("Phone that was deleted the most often: {}".format(phones[np.argmax(decision_matrix[2,:])]))
+        print("Overall phone accuracy: {}".format(total_correct / np.sum(total)))
+        disp = ConfusionMatrixDisplay(confusion_matrix, display_labels=phones)
+        disp.text_ = None
+        disp.plot(include_values=False)
+        plt.show()
+
+    elif(input_setting == "word"):
+
+        TRUE_TEXT_PATH = "archive/data/TEST/DR1/FAKS0/SA1.TXT" #path to true transcription
+        MODEL_TEXT_PATH = "output_min_suppression_1000\DR1\FAKS0\SA1.WAV.txt" #path to the model's outputted transcription
+        word_actual = transcribe_text(TRUE_TEXT_PATH, from_file=True)
+        word_pred = transcribe_text(MODEL_TEXT_PATH)
+        print(word_actual)
+        print(word_pred)
+        true_transcription = transcribe_audio(TRUE_TEXT_PATH, from_file=True)
+        pred_transcription = transcribe_audio(MODEL_TEXT_PATH)
+        print(true_transcription)
+        print(pred_transcription)
+        transcribe(true_transcription, pred_transcription, confusion_matrix, phones_dict, verbose=True)
