@@ -16,7 +16,7 @@ def add_noise(audio, params, method='none'):
     else:
         X_noise = X
     # #convert audio back into signal
-    Xn = librosa.istft(X)
+    Xn = librosa.istft(X_noise)
     #return the noisy audio signal as a short int for deepspeech
     return Xn.astype(np.int16)
 
