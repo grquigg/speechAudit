@@ -156,8 +156,8 @@ def main():
     #this code is modified slightly to work for the layout of the TIMIT dataset
     i_dir = "archive/data/TEST/"
     o_dir = "output_min_suppression_zero"
-    NOISE_PARAMS = []
-    noise_method = 'none'
+    NOISE_PARAMS = {}
+    NOISE_METHOD = 'none'
 
     if(not os.path.isdir(o_dir)):
         os.mkdir(o_dir)
@@ -206,7 +206,7 @@ def main():
                             file.write(json.dumps(metadata_json_output(ds.sttWithMetadata(audio, args.candidate_transcripts))))
                             file.close()
                     else:
-                        audio = add_noise(audio, NOISE_PARAMS, method=noise_method)
+                        audio = add_noise(audio, NOISE_PARAMS, method=NOISE_METHOD)
                         print(ds.stt(audio))
                         with open(fout, "w") as file:
                             file.write(ds.stt(audio))

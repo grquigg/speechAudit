@@ -21,12 +21,14 @@ def add_noise(audio, params, method='none'):
     return Xn.astype(np.int16)
 
 def add_gaussian_noise(X, params):
-    gaussian = np.random.normal(loc=params[0], scale=params[1], size=(X.shape))
+    mean = params['mean'] if 'mean' in params else 0
+    std = params['std'] if 'std' in params else 1
+    gaussian = np.random.normal(loc=mean, scale=std, size=(X.shape))
     X += gaussian
     return X
 
 def minimum_suppression(X, params):
-    threshold = params[0]
+    threshold = params['threshold'] if 'threshold' in params else 5000
     mask = np.greater(X,threshold)
     X = np.multiply(X, mask)
     return X
