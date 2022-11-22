@@ -14,5 +14,6 @@
 - I've updated `add_noise.py` to be more modular and allow us to add functions for quickly testing noisy output. 
 If there's a specific type of noise you want to test, create a function and then call that function in the general `add_noise.py` function based on the if-else template. 
 - The noise parameters are passed using the array `params`. Whatever parameters of the noise function you need from the main client file, you should pass through here. You should add parameters to the `NOISE_PARAMS` dictionary in `client.py`. 
-    - `gaussian` requires `mean` & `std` in `NOISE_PARAMS`
-    - `min_suppression` requires `threshold` in `NOISE_PARAMS`
+    - `gaussian`: `mean` (default=0) & `std` (default=1) 
+    - `min_suppression`: `threshold` (default=5000) 
+    - `superimpose`: `noise_dir` (default=`noise_src/`) contains all the noise files that should be superimposed on the signal, `noise_mag` (default=1) controls the magnitude of the superimposed signal
