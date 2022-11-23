@@ -1,8 +1,22 @@
 # Feature extraction example
+import math
+import random
+
 import numpy as np
 import librosa
+import audiomentations
+from audiomentations import AddGaussianSNR, TimeStretch, PitchShift, Shift
+import albumentations as Alb
+from PIL import Image
+import simpleaudio as sa
+from scipy.io import wavfile
+from librosa import display
+import matplotlib.pyplot as plt
+import torch
 import os
-import wave
+# Load the example clip
+from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
+import glob
 
 def add_noise(audio, params={}, method='none'):
     #convert audio into float for adding noise
@@ -63,3 +77,55 @@ def superimpose(X, params):
         X += noise_sam * noise_mag
 
     return X
+
+def lengthen(X):
+    X_long = np.zeros((X.shape[0], X.shape[1]*2), dtype=complex)
+    X_long[:,0:X_long.shape[1]:2] = X.copy()
+    X_long[:,1:X_long.shape[1]-1:2] = (X_long[:,0:X_long.shape[1]-2:2].copy() + X_long[:,2:X_long.shape[1]:2].copy()) / 2
+    X_long[:,-1] = X_long[:,-2].copy()
+    return X_long
+
+def add_real_world_noise(audio, params):
+    # params is the SNR, range from 90 to 110.
+    # read_dir = 'realworld/output{}.wav'.format()
+    soundfiles = glob.glob("realworld/*.wav")
+    samplerate, data = wavfile.read(random.choice(soundfiles))
+    noise = data[:len(audio),0]
+    RMS_noise = np.mean(audio**2)/math.sqrt(10**(params/10))
+    a = np.divide(RMS_noise,np.mean(noise**2))
+    noised_audio = audio+np.multiply(a,noise)
+    sa.play_buffer(noised_audio.astype(np.int16), 1, 2, 16000)
+    return noised_audio
+
+def add_cutout_noise(X, params):
+    h, w = X.shape[0], X.shape[1]
+    mask = np.ones((h, w), np.int16)
+    for n in range(params):
+        y = np.random.randint(h-10)
+        x = np.random.randint(w-10)
+
+        mask[y: y+10, x: x+10] = 0.
+
+    X = X * mask
+
+    return X
+
+def apply_audio_transforms(audio):
+    # audio augmentation:
+    #   Gaussian noise is added with prob 0.5,
+    #   TimeStretch with prob 0.5
+    #   PitchShift with prob 0.5
+    #   Shift with prob 0.5
+    audio_transforms = audiomentations.Compose([
+        AddGaussianSNR(min_snr_in_db=5, max_snr_in_db=40.0, p=0.5),
+        TimeStretch(min_rate=0.8, max_rate=1.25, p=0.5),
+        PitchShift(min_semitones=-4, max_semitones=4, p=0.5),
+        Shift(min_fraction=-0.5, max_fraction=0.5, p=0.5),
+    ])
+
+    y = audio_transforms(samples=audio, sample_rate=16000)
+
+    # play the augmented audio signal
+    sa.play_buffer(audio.astype(np.int16), 1, 2, 16000)
+
+    return y

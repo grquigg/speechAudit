@@ -171,14 +171,14 @@ if __name__ == '__main__':
         phones_dict[phones[i]] = i
     confusion_matrix = np.zeros((len(phones), len(phones)), dtype=int) #table for each respective phone
     #input settings are "word" and "corpus"
-    input_setting = "word"
+    input_setting = "corpus"
     if(input_setting == "corpus"):
         actual_transcriptions = []
         predicted_transcriptions = []
         actual_trans = []
         predicted_trans = []
 
-        in_dir = "output_min_suppression_zero"
+        in_dir = "output_min_suppression_100"
         text_dir = "archive/data/TEST"
         s_list = os.listdir(text_dir)
 
@@ -197,6 +197,7 @@ if __name__ == '__main__':
                     if(fname[-4:] == '.wav'):
                         name_base = fname[:-8]
                         true_trans_path = os.path.join(read_dir, name_base+".TXT")
+                        # print(true_trans_path)
                         pred_trans_path= os.path.join(in_dir, dir+"/"+sub_dir+"/"+name_base+".WAV.txt")
                         word_actual = transcribe_text(true_trans_path, from_file=True)
                         word_pred = transcribe_text(pred_trans_path)
@@ -234,16 +235,19 @@ if __name__ == '__main__':
         print("Phone with highest number of errors: {}".format(phones[np.argmax(errors)]))
         print("Phone that was added the most often: {}".format(phones[np.argmax(confusion_matrix[-1,:])]))
         print("Phone that was deleted the most often: {}".format(phones[np.argmax(decision_matrix[2,:])]))
+        print(phones)
+        print(accuracy_per_phone)
         print("Overall phone accuracy: {}".format(total_correct / np.sum(total)))
         disp = ConfusionMatrixDisplay(confusion_matrix, display_labels=phones)
         disp.text_ = None
         disp.plot(include_values=False)
+        plt.xticks(rotation=90)
         plt.show()
 
     elif(input_setting == "word"):
 
         TRUE_TEXT_PATH = "archive/data/TEST/DR1/FAKS0/SA1.TXT" #path to true transcription
-        MODEL_TEXT_PATH = "output_min_suppression_1000\DR1\FAKS0\SA1.WAV.txt" #path to the model's outputted transcription
+        MODEL_TEXT_PATH = "output_min_suppression_2000\DR1\FAKS0\SA1.WAV.txt" #path to the model's outputted transcription
         word_actual = transcribe_text(TRUE_TEXT_PATH, from_file=True)
         word_pred = transcribe_text(MODEL_TEXT_PATH)
         print(word_actual)
