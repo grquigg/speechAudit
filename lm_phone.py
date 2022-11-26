@@ -178,7 +178,7 @@ if __name__ == '__main__':
         actual_trans = []
         predicted_trans = []
 
-        in_dir = "output_min_suppression_100"
+        in_dir = "output_gaussian_0_5000"
         text_dir = "archive/data/TEST"
         s_list = os.listdir(text_dir)
 
@@ -197,18 +197,18 @@ if __name__ == '__main__':
                     if(fname[-4:] == '.wav'):
                         name_base = fname[:-8]
                         true_trans_path = os.path.join(read_dir, name_base+".TXT")
-                        # print(true_trans_path)
                         pred_trans_path= os.path.join(in_dir, dir+"/"+sub_dir+"/"+name_base+".WAV.txt")
                         word_actual = transcribe_text(true_trans_path, from_file=True)
                         word_pred = transcribe_text(pred_trans_path)
                         true_transcription = transcribe_audio(true_trans_path, from_file=True)
-                        actual_transcriptions.append(' '.join(true_transcription))
-                        actual_trans.append(true_transcription)
                         pred_transcription = transcribe_audio(pred_trans_path)
-                        if(len(pred_transcription) == 0):
-                            raise NotImplementedError()
-                        predicted_transcriptions.append(' '.join(pred_transcription))
-                        predicted_trans.append(pred_transcription)
+                        if(len(pred_transcription) != 0):
+                            predicted_transcriptions.append(' '.join(pred_transcription))
+                            predicted_trans.append(pred_transcription)
+                            actual_transcriptions.append(' '.join(true_transcription))
+                            actual_trans.append(true_transcription)
+                        else:
+                            print(true_trans_path)
                         transcribe(true_transcription, pred_transcription, confusion_matrix, phones_dict)
                         index = 0
                         max_align_dist = 1 #assume that transcriptions are off by only one or two phonemes

@@ -30,6 +30,11 @@ def add_noise(audio, params={}, method='none'):
         X_noise = minimum_suppression(X, params)
     elif(method=='superimpose'):
         X_noise = superimpose(X, params)
+    elif(method=='lengthen'):
+        X_noise = lengthen(audio)
+        return X_noise.astype(np.int16)
+    elif(method=='cutout'):
+        X_noise = add_cutout_noise(X, params)
     else:
         X_noise = X
     # #convert audio back into signal
