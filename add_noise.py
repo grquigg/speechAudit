@@ -8,7 +8,6 @@ import wave
 
 import audiomentations
 from audiomentations import AddGaussianSNR, TimeStretch, PitchShift, Shift
-import albumentations as Alb
 from PIL import Image
 import simpleaudio as sa
 from scipy.io import wavfile
@@ -35,6 +34,9 @@ def add_noise(audio, params={}, method='none'):
         return X_noise.astype(np.int16)
     elif(method=='cutout'):
         X_noise = add_cutout_noise(X, params)
+    elif(method=='real_world_noise'):
+        X_noise = add_real_world_noise(audio, params)
+        return X_noise.astype(np.int16)
     else:
         X_noise = X
     # #convert audio back into signal
@@ -115,11 +117,16 @@ def add_real_world_noise(audio, params):
     soundfiles = glob.glob("realworld/*.wav")
     samplerate, data = wavfile.read(random.choice(soundfiles))
     noise = data[:len(audio),0]
-    RMS_noise = np.mean(audio**2)/math.sqrt(10**(params/10))
+    if(len(data) < len(audio)): #in the case that the noise audio is shorter than the actual audio, just replay
+        noise = np.zeros((len(audio)))
+        for i in range(0, len(data), len(audio)):
+            noise[i:i+len(data)] = data[:,0].copy()
+    RMS_noise = np.mean(audio**2)/math.sqrt(10**(params['SNR']/10))
     a = np.divide(RMS_noise,np.mean(noise**2))
-    noised_audio = audio+np.multiply(a,noise)
-    sa.play_buffer(noised_audio.astype(np.int16), 1, 2, 16000)
-    return noised_audio
+    result = audio+np.multiply(a,noise)
+
+    # sa.play_buffer(noised_audio.astype(np.int16), 1, 2, 16000)
+    return result
 
 def add_cutout_noise(X, params):
     h, w = X.shape[0], X.shape[1]
