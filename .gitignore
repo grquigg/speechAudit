@@ -1,6 +1,8 @@
 model/*
 data/input/*
 data/output/*
+vosk_noise_audio_dir/
+
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
