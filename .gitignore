@@ -2,6 +2,8 @@ model/*
 data/input/*
 data/output/*
 vosk_noise_audio_dir/
+test_audio/
+output_test_vosk/
 
 
 # Byte-compiled / optimized / DLL files
