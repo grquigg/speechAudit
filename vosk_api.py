@@ -1,4 +1,3 @@
-import json
 from vosk import KaldiRecognizer
 
 def vosk_asr(model, wf):
@@ -23,5 +22,4 @@ def vosk_asr(model, wf):
         else:
             rec.PartialResult()
 
-    res = json.loads(rec.FinalResult())
-    return res["text"]
+    return rec.FinalResult()

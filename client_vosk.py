@@ -34,7 +34,7 @@ def main():
 
     for file in os.listdir(i_dir):
         flin = os.path.join(i_dir, file)
-        fout = os.path.join(o_dir, f"{file[:-4]}.txt")
+        fout = os.path.join(o_dir, f"{file[:-4]}.json")
         
         fin = wave.open(flin, "rb")
         if fin.getnchannels() != 1 or fin.getsampwidth() != 2 or fin.getcomptype() != "NONE":
@@ -51,8 +51,6 @@ def main():
 
         with open(fout, "w") as file:
             file.write(vosk_asr(model, wf))
-            file.close()
-
 
 if __name__ == "__main__":
     main()
