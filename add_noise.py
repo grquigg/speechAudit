@@ -77,7 +77,9 @@ class SuperImposeNoise:
         self.__loaded = True
     
     def add_noise(self, X):
-        for noise in self.noi:
+        # generate random magnitudes that sum to self.mag
+        mags = self.mag * np.random.default_rng().dirichlet(np.ones(len(self.noi)), size=1)[0]
+        for i, noise in enumerate(self.noi):
             assert(X.shape[0] == noise.shape[0]) # n_fft should be same
             if noise.shape[1] > X.shape[1]:
                 start_idx = np.random.randint(0, noise.shape[1] - X.shape[1] + 1)
@@ -85,18 +87,11 @@ class SuperImposeNoise:
             else:
                 num_stack = 1 + X.shape[1] // noise.shape[1]
                 noise_sam = np.tile(noise, num_stack)[:, :X.shape[1]]
-            X += noise_sam * self.mag
+            X += noise_sam * mags[i]
         return X
 
 SINObj = SuperImposeNoise()
 def superimpose(X, params):
-    # TODO
-    # - get sample_rate from client.py to make sure both audio & noise
-    # files are sampled in the same sample_rate
-    # - add multiple noise_src files & change noise_mag to be random weights
-    # to have weighted noise added to X (maybe even make sure that the sum
-    # of all the random weights equal to a max_mag)
-
     noise_dir = params['noise_dir'] if 'noise_dir' in params else 'noise_src'
     noise_mag = params['noise_mag'] if 'noise_mag' in params else 1
 
