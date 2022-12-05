@@ -365,7 +365,7 @@ if __name__ == '__main__':
         actual_trans = []
         predicted_trans = []
 
-        in_dir = "output"
+        in_dir = "output_min_suppression_zero"
         text_dir = "archive/data/TEST"
         s_list = os.listdir(text_dir)
 
@@ -388,6 +388,8 @@ if __name__ == '__main__':
                         pred_trans_path= os.path.join(in_dir, dir+"/"+sub_dir+"/"+name_base+".WAV.txt")
                         word_actual = transcribe_text(true_trans_path, from_file=True)
                         word_pred = transcribe_text(pred_trans_path)
+                        print(word_actual)
+                        print(word_pred)
                         true_transcription = transcribe_audio(true_trans_path, from_file=True)
                         pred_transcription = transcribe_audio(pred_trans_path)
                         if(len(pred_transcription) != 0):
@@ -408,7 +410,8 @@ if __name__ == '__main__':
                                 error_dict[error_b[i]]["total"] += 1
         print(sorted(error_dict.items(), key=lambda item: item[1]['total'], reverse=True))
         print(error_dict)
-        total = np.sum(confusion_matrix, axis=0)
+        total = np.sum(confusion_matrix, axis=1)
+        print(total)
         accuracy_per_phone = np.zeros(len(phones)-1)
         accuracies = confusion_matrix.copy().astype(float)
         total_correct = 0
@@ -420,7 +423,9 @@ if __name__ == '__main__':
             decision_matrix[2,i] = confusion_matrix[i,-1]
             accuracy_per_phone[i] = accuracies[i,i].copy()
         print("Overall phone accuracy: {}".format(total_correct / np.sum(total)))
-        print(phones)
+        print("Phone that was added the most often: {}".format(phones[np.argmax(confusion_matrix[-1,:])]))
+        print(np.max(confusion_matrix[-1,:]))
+        print("Phone that was deleted the most often: {}".format(phones[np.argmax(decision_matrix[2,:])]))
         np.savetxt('phones.csv', accuracy_per_phone, delimiter=',')
         disp = ConfusionMatrixDisplay(confusion_matrix, display_labels=phones)
         disp.text_ = None
@@ -428,6 +433,7 @@ if __name__ == '__main__':
         plt.xticks(rotation=90)
         plt.title("Non-noisy Deepspeech output")
         plt.show()
+        np.savetxt('confusion.csv', confusion_matrix, delimiter=',', fmt='%d')
 
 
 
