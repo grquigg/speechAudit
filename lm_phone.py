@@ -4,18 +4,19 @@ import copy
 import jiwer
 import numpy as np
 import jellyfish
+import sys
 from test_logos import get_out_of_vocab
 import matplotlib.pyplot as plt
 from sklearn.metrics import ConfusionMatrixDisplay
+np.set_printoptions(threshold=sys.maxsize)
 #retrieve CMU pronunciation dict
 # response = requests.get("http://svn.code.sf.net/p/cmusphinx/code/trunk/cmudict/sphinxdict/cmudict.0.7a_SPHINX_40")
 # open("cmudict.0.7a_SPHINX_40", "wb").write(response.content)
 #manually read in csv; the formatting of the file breaks pd.read_csv
 dict = {}
 phones = []
-VOWELS = ['AA', 'AE', 'AH', 'AW', 'AY', 'EH', 'EY', 'OW', 'OY', 'UH', 'UW']
-ORTH_VOWELS = ['A', 'E', 'I', 'O', 'U']
-CONSONANTS = ['B', 'CH', 'D', 'DH', 'F', 'G', 'HH', 'JH', 'K', 'L', 'M', 'N', 'NG', 'P', 'R', 'S', 'T', 'TH', 'V', 'W', 'Z', 'ZH']
+VOWELS = ['AA', 'AE', 'AH', 'AO', 'AW', 'AY', 'EH', 'EY', 'IH', 'IY', 'OW', 'OY', 'UH', 'UW']
+CONSONANTS = ['B', 'CH', 'D', 'DH', 'F', 'G', 'HH', 'JH', 'K', 'L', 'M', 'N', 'NG', 'P', 'R', 'ER', 'S', 'SH', 'T', 'TH', 'V', 'W', 'Y', 'Z', 'ZH']
 
 with open("cmudict.0.7a_SPHINX_40", "r") as file:
     for line in file:
@@ -27,7 +28,7 @@ with open("Sphinx_phones_40", 'r') as phone_file:
     for line in phone_file:
         phones.append(line.replace('\n', ''))
 
-phones.append("NONE")
+phones.append("-")
 def transcribe_text(file_path, from_file=False):
     transcript = []
     with open(file_path, "r") as f:
@@ -165,20 +166,118 @@ def compute_accuracy(actual_phones, predicted_phones, matrix, phones_dict):
         matrix += temp
     pass
 
+def needleman_wunsch(actual_phones, pred_phones, matrix, phone_dict, verbose=False):
+    MATCH_SCORE = 10
+    MISMATCH_SCORE = -1
+    GAP_SCORE= -2
+    MISMATCH_VOWEL_CONS_SCORE = -100 #avoid confusing consonants for vowels
+    print(actual_phones)
+    print(pred_phones)
+    grid = np.zeros((len(pred_phones)+1, len(actual_phones)+1), dtype=int)
+    op_grid = np.zeros((len(pred_phones)+1, len(actual_phones)+1))
+    for i in range(1, grid.shape[1]):
+        grid[0,i] = grid[0,i-1] + GAP_SCORE
+    for j in range(1, grid.shape[0]):
+        grid[j,0] = grid[j-1,0] + GAP_SCORE
+        pass
+    for i in range(1, grid.shape[0]):
+        for j in range(1, grid.shape[1]):
+            top_left = grid[i-1,j-1].copy()
+            top = grid[i-1,j].copy()+GAP_SCORE
+            left = grid[i,j-1].copy()+GAP_SCORE
+            if(pred_phones[i-1] == actual_phones[j-1]):
+                top_left+=MATCH_SCORE
+            else:
+                if(pred_phones[i-1] in CONSONANTS and actual_phones[j-1] in VOWELS):
+                    top_left+= MISMATCH_VOWEL_CONS_SCORE
+                elif(pred_phones[i-1] in VOWELS and actual_phones[j-1] in CONSONANTS):
+                    top_left+=MISMATCH_VOWEL_CONS_SCORE
+                else:
+                    top_left+=MISMATCH_SCORE
+            array = [top_left, top, left]
+            grid[i,j] = array[np.argmax(array)]
+    #alignment 
+    alignment_a = []
+    alignment_b = []
+    i = len(pred_phones)
+    j = len(actual_phones)
+    while(i > 0 or j > 0):
+        if(i > 0 and j > 0 and grid[i,j] == grid[i-1,j-1] + MATCH_SCORE and pred_phones[i-1] == actual_phones[j-1]):
+            alignment_a.insert(0, pred_phones[i-1])
+            alignment_b.insert(0, actual_phones[j-1])
+            i = i-1
+            j = j-1
+        elif(j > 0 and grid[i,j] == grid[i,j-1] + GAP_SCORE):
+            alignment_a.insert(0, "-")
+            alignment_b.insert(0, actual_phones[j-1])
+            j = j-1
+        elif(i > 0 and j > 0 and grid[i,j] == grid[i-1,j-1] + MISMATCH_SCORE and
+            ((pred_phones[i-1] in CONSONANTS and actual_phones[j-1] in CONSONANTS) or 
+            (pred_phones[i-1] in VOWELS and actual_phones[j-1] in VOWELS))):
+                alignment_a.insert(0, pred_phones[i-1])
+                alignment_b.insert(0, actual_phones[j-1])
+                i = i-1
+                j = j-1
+        else:
+            alignment_a.insert(0, pred_phones[i-1])
+            alignment_b.insert(0, "-")
+            i = i-1
+    print("ALIGNMENT")
+    print(alignment_a)
+    print(alignment_b)
+    #verify vowels are not aligned with things
+    for i in range(len(alignment_a)):
+        if(alignment_a[i] != alignment_b[i]):
+            if(alignment_a[i] in CONSONANTS and alignment_b[i] in VOWELS):
+                np.savetxt('grid.csv', grid, fmt='%d', delimiter=',')
+                raise NotImplementedError
+            elif(alignment_b[i] in CONSONANTS and alignment_a[i] in VOWELS):
+                np.savetxt('grid.csv', grid, fmt='%d', delimiter=',')
+                raise NotImplementedError
+    #find most common sources of error
+    errors_a = []
+    errors_b = []
+    for i in range(len(alignment_a)):
+        if(alignment_a[i] != alignment_b[i]):
+            error_a = ""
+            error_b = ""
+            if(i == 0 or alignment_a[i-1] == alignment_b[i-1]):
+                if(i!=0):
+                    error_a += alignment_a[i-1]
+                    error_b += alignment_b[i-1]
+                if(alignment_a[i] != '-'):
+                    error_a += " " + alignment_a[i]
+                if(alignment_b[i] != '-'):
+                    error_b += " " + alignment_b[i]
+                while(alignment_a[i] != alignment_b[i] and i < len(alignment_a)-1):
+                    i+=1
+                    if(alignment_a[i] != '-'):
+                        error_a += " " + alignment_a[i]
+                    if(alignment_b[i] != '-'):
+                        error_b += " " + alignment_b[i]
+            errors_a.append(error_a)
+            errors_b.append(error_b)
+    print(errors_a)
+    print(errors_b)
+    for i in range(len(alignment_a)):
+        predicted = alignment_a[i]
+        actual = alignment_b[i]
+        confusion_matrix[phone_dict[actual]][phone_dict[predicted]] += 1
+    return errors_a, errors_b
 if __name__ == '__main__':
     phones_dict = {}
     for i in range(len(phones)):
         phones_dict[phones[i]] = i
     confusion_matrix = np.zeros((len(phones), len(phones)), dtype=int) #table for each respective phone
     #input settings are "word" and "corpus"
-    input_setting = "corpus"
+    input_setting = "needleman_wunsch"
     if(input_setting == "corpus"):
         actual_transcriptions = []
         predicted_transcriptions = []
         actual_trans = []
         predicted_trans = []
 
-        in_dir = "output_gaussian_0_5000"
+        in_dir = "output_min_suppression_2500"
         text_dir = "archive/data/TEST"
         s_list = os.listdir(text_dir)
 
@@ -215,6 +314,7 @@ if __name__ == '__main__':
                         previous_error_rate = 0
 
         error = jiwer.compute_measures(predicted_transcriptions, actual_transcriptions)
+        print(error)
         print("Phone error rate: {}".format(error['wer'])) #treat each phone in the transcription as a word
         total = np.sum(confusion_matrix, axis=0)
         accuracy_per_phone = np.zeros(len(phones)-1)
@@ -242,6 +342,7 @@ if __name__ == '__main__':
         disp.text_ = None
         disp.plot(include_values=False)
         plt.xticks(rotation=90)
+        plt.title("Non-noisy Deepspeech output")
         plt.show()
 
     elif(input_setting == "word"):
@@ -257,3 +358,76 @@ if __name__ == '__main__':
         print(true_transcription)
         print(pred_transcription)
         transcribe(true_transcription, pred_transcription, confusion_matrix, phones_dict, verbose=True)
+    elif(input_setting == "needleman_wunsch"):
+        error_dict = {}
+        actual_transcriptions = []
+        predicted_transcriptions = []
+        actual_trans = []
+        predicted_trans = []
+
+        in_dir = "output"
+        text_dir = "archive/data/TEST"
+        s_list = os.listdir(text_dir)
+
+        decision_matrix = np.zeros((3, len(phones)))
+        dir_list = os.listdir(text_dir)
+
+        for dir in dir_list:
+            i_dir2 = os.path.join(text_dir, dir)
+
+            subsub_dir = os.listdir(i_dir2)
+            for sub_dir in subsub_dir:
+                read_dir = os.path.join(i_dir2, sub_dir)
+
+                files = os.listdir(read_dir)
+                for fname in files:
+                    if(fname[-4:] == '.wav'):
+                        name_base = fname[:-8]
+                        true_trans_path = os.path.join(read_dir, name_base+".TXT")
+                        print(true_trans_path)
+                        pred_trans_path= os.path.join(in_dir, dir+"/"+sub_dir+"/"+name_base+".WAV.txt")
+                        word_actual = transcribe_text(true_trans_path, from_file=True)
+                        word_pred = transcribe_text(pred_trans_path)
+                        true_transcription = transcribe_audio(true_trans_path, from_file=True)
+                        pred_transcription = transcribe_audio(pred_trans_path)
+                        if(len(pred_transcription) != 0):
+                            predicted_transcriptions.append(' '.join(pred_transcription))
+                            predicted_trans.append(pred_transcription)
+                            actual_transcriptions.append(' '.join(true_transcription))
+                            actual_trans.append(true_transcription)
+                        else:
+                            print(true_trans_path)
+                        error_a, error_b = needleman_wunsch(true_transcription, pred_transcription, confusion_matrix, phones_dict)
+                        for i in range(len(error_b)):
+                            if error_b[i] != '':
+                                if(error_b[i] not in error_dict):
+                                    error_dict[error_b[i]] = {"total": 0}
+                                if(error_a[i]) not in error_dict[error_b[i]]:
+                                    error_dict[error_b[i]][error_a[i]] = 0
+                                error_dict[error_b[i]][error_a[i]] += 1
+                                error_dict[error_b[i]]["total"] += 1
+        print(sorted(error_dict.items(), key=lambda item: item[1]['total'], reverse=True))
+        print(error_dict)
+        total = np.sum(confusion_matrix, axis=0)
+        accuracy_per_phone = np.zeros(len(phones)-1)
+        accuracies = confusion_matrix.copy().astype(float)
+        total_correct = 0
+        for i in range(accuracies.shape[0]-1):
+            accuracies[:,i] = accuracies[:,i] / total[i]
+            total_correct += confusion_matrix[i,i]
+            decision_matrix[0,i] = confusion_matrix[i,i]
+            decision_matrix[1,i] = total[i].copy()
+            decision_matrix[2,i] = confusion_matrix[i,-1]
+            accuracy_per_phone[i] = accuracies[i,i].copy()
+        print("Overall phone accuracy: {}".format(total_correct / np.sum(total)))
+        print(phones)
+        np.savetxt('phones.csv', accuracy_per_phone, delimiter=',')
+        disp = ConfusionMatrixDisplay(confusion_matrix, display_labels=phones)
+        disp.text_ = None
+        disp.plot(include_values=False)
+        plt.xticks(rotation=90)
+        plt.title("Non-noisy Deepspeech output")
+        plt.show()
+
+
+
