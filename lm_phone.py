@@ -365,7 +365,7 @@ if __name__ == '__main__':
         actual_trans = []
         predicted_trans = []
 
-        in_dir = "output_min_suppression_zero"
+        in_dir = "output"
         text_dir = "archive/data/TEST"
         s_list = os.listdir(text_dir)
 
@@ -408,8 +408,16 @@ if __name__ == '__main__':
                                     error_dict[error_b[i]][error_a[i]] = 0
                                 error_dict[error_b[i]][error_a[i]] += 1
                                 error_dict[error_b[i]]["total"] += 1
-        print(sorted(error_dict.items(), key=lambda item: item[1]['total'], reverse=True))
-        print(error_dict)
+        #reshape the data structure
+        mistakes = []
+        for k, v in error_dict.items():
+            for key, value in v.items():
+                if(key == "total"):
+                    continue
+                mistake = [k, key, value]
+                mistakes.append(mistake)
+        np.savetxt('mistakes{}.csv'.format(in_dir), mistakes, delimiter=',')
+        print(sorted(mistakes, key=lambda x:x[2], reverse=True))
         total = np.sum(confusion_matrix, axis=1)
         print(total)
         accuracy_per_phone = np.zeros(len(phones)-1)
