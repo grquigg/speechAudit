@@ -5,6 +5,7 @@ import jiwer
 import numpy as np
 import jellyfish
 import sys
+import json
 from test_logos import get_out_of_vocab
 import matplotlib.pyplot as plt
 from sklearn.metrics import ConfusionMatrixDisplay
@@ -24,7 +25,7 @@ with open("cmudict.0.7a_SPHINX_40", "r") as file:
         # print(entry)
         dict[entry[0]] = entry[1]
 
-with open("Sphinx_phones_40", 'r') as phone_file:
+with open("SphinxPhones_40", 'r') as phone_file:
     for line in phone_file:
         phones.append(line.replace('\n', ''))
 
@@ -38,6 +39,7 @@ def transcribe_text(file_path, from_file=False):
             transcript = transcript.replace(". ", " ")
             transcript = transcript.replace(".", "")
             transcript = transcript.replace(",", "")
+            transcript = transcript.replace("'", "")
             transcript = transcript.replace(";", "")
             transcript = transcript.replace(":", "")
             transcript = transcript.replace("?", "")
@@ -52,25 +54,32 @@ def transcribe_text(file_path, from_file=False):
         transcript = transcript[2:]
     return transcript
 
-def transcribe_audio(file_path, from_file=False):
+def transcribe_audio(file_path, from_file=False, file_type="txt"):
     transcript = []
     with open(file_path, "r") as f:
-        for line in f:
-            transcript = line.upper()
-            transcript = transcript.replace("\n", "")
-            transcript = transcript.replace(". ", " ")
-            transcript = transcript.replace(".", "")
-            transcript = transcript.replace(",", "")
-            transcript = transcript.replace(";", "")
-            transcript = transcript.replace(":", "")
-            transcript = transcript.replace("?", '')
-            transcript = transcript.replace("!", '')
-            transcript = transcript.replace("-- ",'')
-            transcript = transcript.replace("-", " ")
-            transcript = transcript.replace('"', '')
-            transcript = transcript.split(' ')
-            if '' in transcript:
-                transcript.remove('')
+        if(file_type == "json"):
+            fjson = json.load(f)
+            transcript = fjson["text"]
+            transcript = transcript.upper()
+        else:
+            for line in f:
+                if(file_type != "json"):
+                    transcript = line.upper()
+        transcript = transcript.replace("\n", "")
+        transcript = transcript.replace(". ", " ")
+        transcript = transcript.replace(".", "")
+        transcript = transcript.replace(",", "")
+        transcript = transcript.replace(";", "")
+        transcript = transcript.replace("'", "")
+        transcript = transcript.replace(":", "")
+        transcript = transcript.replace("?", '')
+        transcript = transcript.replace("!", '')
+        transcript = transcript.replace("-- ",'')
+        transcript = transcript.replace("-", " ")
+        transcript = transcript.replace('"', '')
+        transcript = transcript.split(' ')
+        if '' in transcript:
+            transcript.remove('')
     if(from_file):
         transcript = transcript[2:]
     phonetic = []
@@ -81,6 +90,8 @@ def transcribe_audio(file_path, from_file=False):
         else:
             response = get_out_of_vocab(word)
             dict[response[0]] = response[1]
+            if(response[0] == "WIFI"):
+                dict[response[0]] = response[2]
             transcribe = dict[word].split(' ')
             if 'IX' in transcribe:
                 transcribe.remove('IX')
@@ -277,7 +288,7 @@ if __name__ == '__main__':
         actual_trans = []
         predicted_trans = []
 
-        in_dir = "output_min_suppression_2500"
+        in_dir = "output_gaussian_0_100"
         text_dir = "archive/data/TEST"
         s_list = os.listdir(text_dir)
 
@@ -364,8 +375,8 @@ if __name__ == '__main__':
         predicted_transcriptions = []
         actual_trans = []
         predicted_trans = []
-
-        in_dir = "output"
+        dir_type = "deepspeech"
+        in_dir = "output_vosk_superimpose_1"
         text_dir = "archive/data/TEST"
         s_list = os.listdir(text_dir)
 
@@ -385,13 +396,16 @@ if __name__ == '__main__':
                         name_base = fname[:-8]
                         true_trans_path = os.path.join(read_dir, name_base+".TXT")
                         print(true_trans_path)
-                        pred_trans_path= os.path.join(in_dir, dir+"/"+sub_dir+"/"+name_base+".WAV.txt")
-                        word_actual = transcribe_text(true_trans_path, from_file=True)
-                        word_pred = transcribe_text(pred_trans_path)
-                        print(word_actual)
-                        print(word_pred)
+                        if(dir_type == "vosk"):
+                            pred_trans_path= os.path.join(in_dir, dir+"/"+sub_dir+"/"+name_base+".WAV.json")
+                        else:
+                            pred_trans_path= os.path.join(in_dir, dir+"/"+sub_dir+"/"+name_base+".WAV.txt")
+                        # word_actual = transcribe_text(true_trans_path, from_file=True)
+                        # word_pred = transcribe_text(pred_trans_path)
+                        # print(word_actual)
+                        # print(word_pred)
                         true_transcription = transcribe_audio(true_trans_path, from_file=True)
-                        pred_transcription = transcribe_audio(pred_trans_path)
+                        pred_transcription = transcribe_audio(pred_trans_path, file_type="json")
                         if(len(pred_transcription) != 0):
                             predicted_transcriptions.append(' '.join(pred_transcription))
                             predicted_trans.append(pred_transcription)
@@ -416,7 +430,8 @@ if __name__ == '__main__':
                     continue
                 mistake = [k, key, value]
                 mistakes.append(mistake)
-        np.savetxt('mistakes{}.csv'.format(in_dir), mistakes, delimiter=',')
+        print(mistakes)
+        np.savetxt("mistakes_{}.csv".format(in_dir), np.array(mistakes), delimiter=',', fmt='%s')
         print(sorted(mistakes, key=lambda x:x[2], reverse=True))
         total = np.sum(confusion_matrix, axis=1)
         print(total)
@@ -441,7 +456,7 @@ if __name__ == '__main__':
         plt.xticks(rotation=90)
         plt.title("Non-noisy Deepspeech output")
         plt.show()
-        np.savetxt('confusion.csv', confusion_matrix, delimiter=',', fmt='%d')
+        np.savetxt('{}_confusion.csv'.format(in_dir), confusion_matrix, delimiter=',', fmt='%d')
 
 
 
