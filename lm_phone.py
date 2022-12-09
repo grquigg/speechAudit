@@ -10,6 +10,7 @@ from test_logos import get_out_of_vocab
 import matplotlib.pyplot as plt
 from sklearn.metrics import ConfusionMatrixDisplay
 np.set_printoptions(threshold=sys.maxsize)
+import pandas as pd
 #retrieve CMU pronunciation dict
 # response = requests.get("http://svn.code.sf.net/p/cmusphinx/code/trunk/cmudict/sphinxdict/cmudict.0.7a_SPHINX_40")
 # open("cmudict.0.7a_SPHINX_40", "wb").write(response.content)
@@ -30,32 +31,38 @@ with open("SphinxPhones_40", 'r') as phone_file:
         phones.append(line.replace('\n', ''))
 
 phones.append("-")
-def transcribe_text(file_path, from_file=False):
+def transcribe_text(file_path, from_file=False, file_type="txt"):
     transcript = []
     with open(file_path, "r") as f:
-        for line in f:
-            transcript = line.upper()
-            transcript = transcript.replace("\n", "")
-            transcript = transcript.replace(". ", " ")
-            transcript = transcript.replace(".", "")
-            transcript = transcript.replace(",", "")
-            transcript = transcript.replace("'", "")
-            transcript = transcript.replace(";", "")
-            transcript = transcript.replace(":", "")
-            transcript = transcript.replace("?", "")
-            transcript = transcript.replace("!", "")
-            transcript = transcript.replace("-- ","")
-            transcript = transcript.replace("-", " ")
-            transcript = transcript.replace('"', '')
-            transcript = transcript.split(' ')
-            if '' in transcript:
-                transcript.remove('')
+        if(file_type == "json"):
+            fjson = json.load(f)
+            transcript = fjson["text"]
+            transcript = transcript.upper()
+        else:
+            for line in f:
+                if(file_type != "json"):
+                    transcript = line.upper()
+                transcript = transcript.replace("\n", "")
+                transcript = transcript.replace(". ", " ")
+                transcript = transcript.replace(".", "")
+                transcript = transcript.replace(",", "")
+                transcript = transcript.replace("'", "")
+                transcript = transcript.replace(";", "")
+                transcript = transcript.replace(":", "")
+                transcript = transcript.replace("?", "")
+                transcript = transcript.replace("!", "")
+                transcript = transcript.replace("-- ","")
+                transcript = transcript.replace("-", " ")
+                transcript = transcript.replace('"', '')
+                transcript = transcript.split(' ')
+                if '' in transcript:
+                    transcript.remove('')
     if(from_file):
         transcript = transcript[2:]
     return transcript
 
 def transcribe_audio(file_path, from_file=False, file_type="txt"):
-    transcript = []
+    transcript = ""
     with open(file_path, "r") as f:
         if(file_type == "json"):
             fjson = json.load(f)
@@ -182,8 +189,8 @@ def needleman_wunsch(actual_phones, pred_phones, matrix, phone_dict, verbose=Fal
     MISMATCH_SCORE = -1
     GAP_SCORE= -2
     MISMATCH_VOWEL_CONS_SCORE = -100 #avoid confusing consonants for vowels
-    print(actual_phones)
-    print(pred_phones)
+    # print(actual_phones)
+    # print(pred_phones)
     grid = np.zeros((len(pred_phones)+1, len(actual_phones)+1), dtype=int)
     op_grid = np.zeros((len(pred_phones)+1, len(actual_phones)+1))
     for i in range(1, grid.shape[1]):
@@ -233,9 +240,9 @@ def needleman_wunsch(actual_phones, pred_phones, matrix, phone_dict, verbose=Fal
             alignment_a.insert(0, pred_phones[i-1])
             alignment_b.insert(0, "-")
             i = i-1
-    print("ALIGNMENT")
-    print(alignment_a)
-    print(alignment_b)
+    # print("ALIGNMENT")
+    # print(alignment_a)
+    # print(alignment_b)
     #verify vowels are not aligned with things
     for i in range(len(alignment_a)):
         if(alignment_a[i] != alignment_b[i]):
@@ -268,13 +275,15 @@ def needleman_wunsch(actual_phones, pred_phones, matrix, phone_dict, verbose=Fal
                         error_b += " " + alignment_b[i]
             errors_a.append(error_a)
             errors_b.append(error_b)
-    print(errors_a)
-    print(errors_b)
+    # print(errors_a)
+    # print(errors_b)
     for i in range(len(alignment_a)):
         predicted = alignment_a[i]
         actual = alignment_b[i]
         confusion_matrix[phone_dict[actual]][phone_dict[predicted]] += 1
     return errors_a, errors_b
+
+
 if __name__ == '__main__':
     phones_dict = {}
     for i in range(len(phones)):
@@ -288,7 +297,7 @@ if __name__ == '__main__':
         actual_trans = []
         predicted_trans = []
 
-        in_dir = "output_gaussian_0_100"
+        in_dir = "output_long"
         text_dir = "archive/data/TEST"
         s_list = os.listdir(text_dir)
 
@@ -375,8 +384,9 @@ if __name__ == '__main__':
         predicted_transcriptions = []
         actual_trans = []
         predicted_trans = []
-        dir_type = "deepspeech"
-        in_dir = "output_vosk_superimpose_1"
+        df = pd.DataFrame(columns=["true_text_path", "true_text", "text_transcription", "pred_text_path", "pred_text", "pred_transcription"])
+        dir_type = "vosk"
+        in_dir = "output_vosk_test"
         text_dir = "archive/data/TEST"
         s_list = os.listdir(text_dir)
 
@@ -395,17 +405,24 @@ if __name__ == '__main__':
                     if(fname[-4:] == '.wav'):
                         name_base = fname[:-8]
                         true_trans_path = os.path.join(read_dir, name_base+".TXT")
-                        print(true_trans_path)
+                        dictionary = {"true_text_path": true_trans_path}
                         if(dir_type == "vosk"):
                             pred_trans_path= os.path.join(in_dir, dir+"/"+sub_dir+"/"+name_base+".WAV.json")
                         else:
                             pred_trans_path= os.path.join(in_dir, dir+"/"+sub_dir+"/"+name_base+".WAV.txt")
-                        # word_actual = transcribe_text(true_trans_path, from_file=True)
-                        # word_pred = transcribe_text(pred_trans_path)
-                        # print(word_actual)
-                        # print(word_pred)
+                        dictionary["pred_text_path"] = pred_trans_path
+                        word_actual = transcribe_text(true_trans_path, from_file=True)
                         true_transcription = transcribe_audio(true_trans_path, from_file=True)
-                        pred_transcription = transcribe_audio(pred_trans_path, file_type="json")
+                        if(dir_type == "vosk"):
+                            pred_transcription = transcribe_audio(pred_trans_path, file_type="json")
+                            word_pred = transcribe_text(pred_trans_path, file_type="json")
+                        else:
+                            pred_transcription = transcribe_audio(pred_trans_path, file_type="txt")
+                            word_pred = transcribe_text(pred_trans_path, file_type="txt")
+                        dictionary["text_transcription"] = str(true_transcription)
+                        dictionary["pred_transcription"] = str(pred_transcription)
+                        dictionary["true_text"] = str(word_actual)
+                        dictionary["pred_text"] = str(word_pred)
                         if(len(pred_transcription) != 0):
                             predicted_transcriptions.append(' '.join(pred_transcription))
                             predicted_trans.append(pred_transcription)
@@ -413,6 +430,8 @@ if __name__ == '__main__':
                             actual_trans.append(true_transcription)
                         else:
                             print(true_trans_path)
+                        serial= pd.DataFrame(dictionary, index=[0])
+                        df = pd.concat([df, serial], ignore_index=True)
                         error_a, error_b = needleman_wunsch(true_transcription, pred_transcription, confusion_matrix, phones_dict)
                         for i in range(len(error_b)):
                             if error_b[i] != '':
@@ -430,11 +449,10 @@ if __name__ == '__main__':
                     continue
                 mistake = [k, key, value]
                 mistakes.append(mistake)
-        print(mistakes)
         np.savetxt("mistakes_{}.csv".format(in_dir), np.array(mistakes), delimiter=',', fmt='%s')
-        print(sorted(mistakes, key=lambda x:x[2], reverse=True))
+        error = jiwer.compute_measures(predicted_transcriptions, actual_transcriptions)
+        print("Phone error rate: {}".format(error['wer'])) #treat each phone in the transcription as a word
         total = np.sum(confusion_matrix, axis=1)
-        print(total)
         accuracy_per_phone = np.zeros(len(phones)-1)
         accuracies = confusion_matrix.copy().astype(float)
         total_correct = 0
@@ -446,10 +464,12 @@ if __name__ == '__main__':
             decision_matrix[2,i] = confusion_matrix[i,-1]
             accuracy_per_phone[i] = accuracies[i,i].copy()
         print("Overall phone accuracy: {}".format(total_correct / np.sum(total)))
+        print("Accuracies per phone:")
+        for i in range(len(accuracy_per_phone)):
+            print(phones[i], '\t', accuracy_per_phone[i])
         print("Phone that was added the most often: {}".format(phones[np.argmax(confusion_matrix[-1,:])]))
         print(np.max(confusion_matrix[-1,:]))
         print("Phone that was deleted the most often: {}".format(phones[np.argmax(decision_matrix[2,:])]))
-        np.savetxt('phones.csv', accuracy_per_phone, delimiter=',')
         disp = ConfusionMatrixDisplay(confusion_matrix, display_labels=phones)
         disp.text_ = None
         disp.plot(include_values=False)
@@ -457,6 +477,7 @@ if __name__ == '__main__':
         plt.title("Non-noisy Deepspeech output")
         plt.show()
         np.savetxt('{}_confusion.csv'.format(in_dir), confusion_matrix, delimiter=',', fmt='%d')
+        df.to_csv('output/{}_results.csv'.format(in_dir))
 
 
 
