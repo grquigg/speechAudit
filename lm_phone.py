@@ -26,7 +26,7 @@ with open("cmudict.0.7a_SPHINX_40", "r") as file:
         # print(entry)
         dict[entry[0]] = entry[1]
 
-with open("SphinxPhones_40", 'r') as phone_file:
+with open("Sphinx_phones_40", 'r') as phone_file:
     for line in phone_file:
         phones.append(line.replace('\n', ''))
 
@@ -282,7 +282,12 @@ def needleman_wunsch(actual_phones, pred_phones, matrix, phone_dict, verbose=Fal
         actual = alignment_b[i]
         confusion_matrix[phone_dict[actual]][phone_dict[predicted]] += 1
     return errors_a, errors_b
-
+def fix_transcription(text):
+    text = text[1:-1]
+    text = text.replace("'", '')
+    text = text.replace(" ", '')
+    text = text.split(",")
+    return text
 
 if __name__ == '__main__':
     phones_dict = {}
@@ -290,53 +295,44 @@ if __name__ == '__main__':
         phones_dict[phones[i]] = i
     confusion_matrix = np.zeros((len(phones), len(phones)), dtype=int) #table for each respective phone
     #input settings are "word" and "corpus"
-    input_setting = "needleman_wunsch"
-    if(input_setting == "corpus"):
+    input_setting = "comparison"
+    if(input_setting == "comparison"):
+        #FIX GAUSSIAN 100 FOR NORMAL RESULTS
+        in_dir = "gaussian_0_100"
+        error_dict = {}
+        baseline = "output/output_results.csv"
+        comparison = "output/output_{}_results.csv".format(in_dir)
+        bl_df = pd.read_csv(baseline)
+        c_df = pd.read_csv(comparison)
         actual_transcriptions = []
         predicted_transcriptions = []
         actual_trans = []
         predicted_trans = []
 
-        in_dir = "output_long"
-        text_dir = "archive/data/TEST"
-        s_list = os.listdir(text_dir)
-
         decision_matrix = np.zeros((3, len(phones)))
-        dir_list = os.listdir(text_dir)
-
-        for dir in dir_list:
-            i_dir2 = os.path.join(text_dir, dir)
-
-            subsub_dir = os.listdir(i_dir2)
-            for sub_dir in subsub_dir:
-                read_dir = os.path.join(i_dir2, sub_dir)
-
-                files = os.listdir(read_dir)
-                for fname in files:
-                    if(fname[-4:] == '.wav'):
-                        name_base = fname[:-8]
-                        true_trans_path = os.path.join(read_dir, name_base+".TXT")
-                        pred_trans_path= os.path.join(in_dir, dir+"/"+sub_dir+"/"+name_base+".WAV.txt")
-                        word_actual = transcribe_text(true_trans_path, from_file=True)
-                        word_pred = transcribe_text(pred_trans_path)
-                        true_transcription = transcribe_audio(true_trans_path, from_file=True)
-                        pred_transcription = transcribe_audio(pred_trans_path)
-                        if(len(pred_transcription) != 0):
-                            predicted_transcriptions.append(' '.join(pred_transcription))
-                            predicted_trans.append(pred_transcription)
-                            actual_transcriptions.append(' '.join(true_transcription))
-                            actual_trans.append(true_transcription)
-                        else:
-                            print(true_trans_path)
-                        transcribe(true_transcription, pred_transcription, confusion_matrix, phones_dict)
-                        index = 0
-                        max_align_dist = 1 #assume that transcriptions are off by only one or two phonemes
-                        previous_error_rate = 0
-
-        error = jiwer.compute_measures(predicted_transcriptions, actual_transcriptions)
-        print(error)
-        print("Phone error rate: {}".format(error['wer'])) #treat each phone in the transcription as a word
-        total = np.sum(confusion_matrix, axis=0)
+        for i in range(len(bl_df)):
+            true_transcription = bl_df.iloc[i]["pred_transcription"]
+            pred_transcription = c_df.iloc[i]["pred_transcription"]
+            true_transcription = fix_transcription(true_transcription)
+            pred_transcription = fix_transcription(pred_transcription)
+            error_a, error_b = needleman_wunsch(true_transcription, pred_transcription, confusion_matrix, phones_dict)
+            for i in range(len(error_b)):
+                if error_b[i] != '':
+                    if(error_b[i] not in error_dict):
+                        error_dict[error_b[i]] = {"total": 0}
+                    if(error_a[i]) not in error_dict[error_b[i]]:
+                        error_dict[error_b[i]][error_a[i]] = 0
+                    error_dict[error_b[i]][error_a[i]] += 1
+                    error_dict[error_b[i]]["total"] += 1
+        mistakes = []
+        for k, v in error_dict.items():
+            for key, value in v.items():
+                if(key == "total"):
+                    continue
+                mistake = [k, key, value]
+                mistakes.append(mistake)
+        np.savetxt("comparative_mistakes/mistakes_{}.csv".format(in_dir), np.array(mistakes), delimiter=',', fmt='%s')
+        total = np.sum(confusion_matrix, axis=1)
         accuracy_per_phone = np.zeros(len(phones)-1)
         accuracies = confusion_matrix.copy().astype(float)
         total_correct = 0
@@ -347,24 +343,20 @@ if __name__ == '__main__':
             decision_matrix[1,i] = total[i].copy()
             decision_matrix[2,i] = confusion_matrix[i,-1]
             accuracy_per_phone[i] = accuracies[i,i].copy()
-
-        print("Phone with highest accuracy is {} with accuracy of {}".format(phones[np.argmax(accuracy_per_phone)], np.max(accuracy_per_phone)))
-        print("Phone with lowest accuracy is {} with accuracy of {}".format(phones[np.argmin(accuracy_per_phone)], np.min(accuracy_per_phone)))
-        print("Phone with lowest number of appearances in data: {}".format(phones[np.argmin(total)]))
-        errors = decision_matrix[1,:] - decision_matrix[0,:]
-        print("Phone with highest number of errors: {}".format(phones[np.argmax(errors)]))
-        print("Phone that was added the most often: {}".format(phones[np.argmax(confusion_matrix[-1,:])]))
-        print("Phone that was deleted the most often: {}".format(phones[np.argmax(decision_matrix[2,:])]))
-        print(phones)
-        print(accuracy_per_phone)
         print("Overall phone accuracy: {}".format(total_correct / np.sum(total)))
+        print("Accuracies per phone:")
+        for i in range(len(accuracy_per_phone)):
+            print(phones[i], '\t', accuracy_per_phone[i])
+        print("Phone that was added the most often: {}".format(phones[np.argmax(confusion_matrix[-1,:])]))
+        print(np.max(confusion_matrix[-1,:]))
+        print("Phone that was deleted the most often: {}".format(phones[np.argmax(decision_matrix[2,:])]))
         disp = ConfusionMatrixDisplay(confusion_matrix, display_labels=phones)
         disp.text_ = None
         disp.plot(include_values=False)
         plt.xticks(rotation=90)
         plt.title("Non-noisy Deepspeech output")
         plt.show()
-
+        np.savetxt('confusion_comparative/{}_confusion.csv'.format(in_dir), confusion_matrix, delimiter=',', fmt='%d')
     elif(input_setting == "word"):
 
         TRUE_TEXT_PATH = "archive/data/TEST/DR1/FAKS0/SA1.TXT" #path to true transcription
@@ -378,15 +370,15 @@ if __name__ == '__main__':
         print(true_transcription)
         print(pred_transcription)
         transcribe(true_transcription, pred_transcription, confusion_matrix, phones_dict, verbose=True)
-    elif(input_setting == "needleman_wunsch"):
+    elif(input_setting == "baseline"):
         error_dict = {}
         actual_transcriptions = []
         predicted_transcriptions = []
         actual_trans = []
         predicted_trans = []
         df = pd.DataFrame(columns=["true_text_path", "true_text", "text_transcription", "pred_text_path", "pred_text", "pred_transcription"])
-        dir_type = "vosk"
-        in_dir = "output_vosk_test"
+        dir_type = "deepspeech"
+        in_dir = "output_min_suppression_5000"
         text_dir = "archive/data/TEST"
         s_list = os.listdir(text_dir)
 
@@ -449,7 +441,7 @@ if __name__ == '__main__':
                     continue
                 mistake = [k, key, value]
                 mistakes.append(mistake)
-        np.savetxt("mistakes_{}.csv".format(in_dir), np.array(mistakes), delimiter=',', fmt='%s')
+        np.savetxt("mistakes/mistakes_{}.csv".format(in_dir), np.array(mistakes), delimiter=',', fmt='%s')
         error = jiwer.compute_measures(predicted_transcriptions, actual_transcriptions)
         print("Phone error rate: {}".format(error['wer'])) #treat each phone in the transcription as a word
         total = np.sum(confusion_matrix, axis=1)
@@ -476,7 +468,7 @@ if __name__ == '__main__':
         plt.xticks(rotation=90)
         plt.title("Non-noisy Deepspeech output")
         plt.show()
-        np.savetxt('{}_confusion.csv'.format(in_dir), confusion_matrix, delimiter=',', fmt='%d')
+        np.savetxt('confusions/{}_confusion.csv'.format(in_dir), confusion_matrix, delimiter=',', fmt='%d')
         df.to_csv('output/{}_results.csv'.format(in_dir))
 
 
