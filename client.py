@@ -154,66 +154,73 @@ def main():
             ds.addHotWord(word,float(boost))
 
     #this code is modified slightly to work for the layout of the TIMIT dataset
-    i_dir = "archive/data/TEST/"
-    o_dir = "output_min_suppression_zero"
-    NOISE_PARAMS = {}
-    NOISE_METHOD = 'none'
+    EXPERIMENT_RUNS = 10
+    noise_levels = [1]
+    for level in noise_levels:
+        i_dir = "archive/data/TEST/"
+        o_dir = "output_gaussian_run_{}".format(level)
+        NOISE_PARAMS = {"SNR": level}
+        NOISE_METHOD = 'gaussian'
 
-    if(not os.path.isdir(o_dir)):
-        os.mkdir(o_dir)
-    dir_list = os.listdir(i_dir)
-    for dir in dir_list:
-        i_dir2 = os.path.join(i_dir, dir)
-        subout_dir = os.path.join(o_dir, dir)
-        #create corresponding directory in output
-        if(not os.path.isdir(subout_dir)):
-            os.mkdir(subout_dir)
-        subsub_dir = os.listdir(i_dir2)
-        for sub_dir in subsub_dir:
-            read_dir = os.path.join(i_dir2, sub_dir)
+        if(not os.path.isdir(o_dir)):
+            os.mkdir(o_dir)
+        dir_list = os.listdir(i_dir)
+        for dir in dir_list:
+            i_dir2 = os.path.join(i_dir, dir)
+            subout_dir = os.path.join(o_dir, dir)
+            #create corresponding directory in output
+            if(not os.path.isdir(subout_dir)):
+                os.mkdir(subout_dir)
+            subsub_dir = os.listdir(i_dir2)
+            for sub_dir in subsub_dir:
+                read_dir = os.path.join(i_dir2, sub_dir)
 
-            outdir = os.path.join(subout_dir, sub_dir)
-            if(not os.path.isdir(outdir)):
-                os.mkdir(outdir)
-            files = os.listdir(read_dir)
+                outdir = os.path.join(subout_dir, sub_dir)
+                if(not os.path.isdir(outdir)):
+                    os.mkdir(outdir)
+                files = os.listdir(read_dir)
 
-            for fname in files:
-                if(fname[-4:] == '.wav'):
-                    flin = os.path.join(read_dir, fname)
-                    fout = os.path.join(outdir, f"{fname[:-4]}.txt")
+                for fname in files:
+                    if(fname[-4:] == '.wav'):
+                        flin = os.path.join(read_dir, fname)
+                        fout = os.path.join(outdir, f"{fname[:-4]}.txt")
 
-                    fin = wave.open(flin, 'rb')
+                        fin = wave.open(flin, 'rb')
 
-                    fs_orig = fin.getframerate()
-                    if fs_orig != desired_sample_rate:
-                        print('Warning: original sample rate ({}) is different than {}hz. Resampling might produce erratic speech recognition.'.format(fs_orig, desired_sample_rate), file=sys.stderr)
-                        fs_new, audio = convert_samplerate(flin, desired_sample_rate)
-                    else:
-                        audio = np.frombuffer(fin.readframes(fin.getnframes()), np.int16)
+                        fs_orig = fin.getframerate()
+                        if fs_orig != desired_sample_rate:
+                            print('Warning: original sample rate ({}) is different than {}hz. Resampling might produce erratic speech recognition.'.format(fs_orig, desired_sample_rate), file=sys.stderr)
+                            fs_new, audio = convert_samplerate(flin, desired_sample_rate)
+                        else:
+                            audio = np.frombuffer(fin.readframes(fin.getnframes()), np.int16)
 
-                    audio_length = fin.getnframes() * (1/fs_orig)
-                    fin.close()
+                        audio_length = fin.getnframes() * (1/fs_orig)
+                        fin.close()
 
-                    print(f'\nRunning inference on {fname}', file=sys.stderr)
-                    inference_start = timer()
-                    transcripts = []
-                    # sphinx-doc: python_ref_inference_start
-                    if args.extended:
-                        print(metadata_to_string(ds.sttWithMetadata(audio, 1).transcripts[0]))
-                    elif args.json:
-                        print(metadata_json_output(ds.sttWithMetadata(audio, args.candidate_transcripts)))
+                        print(f'\nRunning inference on {fname}', file=sys.stderr)
+                        inference_start = timer()
+                        transcripts = []
+                        outputs = []
+                        for i in range(EXPERIMENT_RUNS):
+                            # sphinx-doc: python_ref_inference_start
+                            if args.extended:
+                                print(metadata_to_string(ds.sttWithMetadata(audio, 1).transcripts[0]))
+                            elif args.json:
+                                print(metadata_json_output(ds.sttWithMetadata(audio, args.candidate_transcripts)))
+                                with open(fout, "w") as file:
+                                    file.write(json.dumps(metadata_json_output(ds.sttWithMetadata(audio, args.candidate_transcripts))))
+                                    file.close()
+                            else:
+                                audio = add_noise(audio, NOISE_PARAMS, method=NOISE_METHOD)
+                                outputs.append(ds.stt(audio))
                         with open(fout, "w") as file:
-                            file.write(json.dumps(metadata_json_output(ds.sttWithMetadata(audio, args.candidate_transcripts))))
+                            for out in outputs:
+                                print(out)
+                                file.write(out)
                             file.close()
-                    else:
-                        audio = add_noise(audio, NOISE_PARAMS, method=NOISE_METHOD)
-                        print(ds.stt(audio))
-                        with open(fout, "w") as file:
-                            file.write(ds.stt(audio))
-                            file.close()
-                    # sphinx-doc: python_ref_inference_stop
-                    inference_end = timer() - inference_start
-                    print('Inference took %0.3fs for %0.3fs audio file.' % (inference_end, audio_length), file=sys.stderr)
+                        # sphinx-doc: python_ref_inference_stop
+                        inference_end = timer() - inference_start
+                        print('Inference took %0.3fs for %0.3fs audio file.' % (inference_end, audio_length), file=sys.stderr)
 
 if __name__ == '__main__':
     main()
